@@ -9,8 +9,10 @@
 #include <mysql.h>
 
 
-#define NB_THREADS_POOL 1
+#define NB_THREADS_POOL 2
 #define TAILLE_FILE_ATTENTE 1
+
+
 
 struct SocketClient {
     int socket;
@@ -33,6 +35,9 @@ void HandlerSIGINT(int s);
 void TraitementConnexion(int sService);
 void* FctThreadClient(void* p);
 
+void DestructeurVS(void *p);
+
+
 
 int sEcoute;
 MYSQL* connexion;
@@ -40,11 +45,12 @@ MYSQL* connexion;
 SocketClient* current;
 SocketClient* last;
 
-
+pthread_key_t cle;
 
 
 int main(int argc,char* argv[])
 {
+
   if (argc != 2)
   {
     printf("Erreur...\n");
@@ -85,6 +91,10 @@ int main(int argc,char* argv[])
     fprintf(stderr,"(SERVEUR) Erreur de connexion à la base de données...\n");
     exit(1);  
   }
+
+  //cle
+ 	pthread_key_create(&cle, DestructeurVS);
+
 
 
   printf("Création du pool de threads.\n");
@@ -172,7 +182,6 @@ void* FctThreadClient(void* p)
     while (nbClientFile == 0)
     {
       pthread_cond_wait(&condSocketsAcceptees,&mutexNbClientFile);
-
     }
 
 
@@ -199,6 +208,8 @@ void TraitementConnexion(int sService)
   int nbLus, nbEcrits;
   bool onContinue = true;
 
+
+
   ARTICLE** panier= (ARTICLE**)malloc(sizeof(ARTICLE*) * 10);
 
   while (onContinue)
@@ -224,7 +235,7 @@ void TraitementConnexion(int sService)
 
 
     pthread_mutex_lock(&mutexDB);
-    onContinue = OVESP(requete,reponse,sService, panier, connexion);
+    onContinue = OVESP(requete,reponse,sService, panier);
     pthread_mutex_unlock(&mutexDB);
 
 
@@ -267,4 +278,13 @@ void HandlerSIGINT(int s)
   pthread_mutex_unlock(&mutexDB);
 
   exit(0);
+}
+
+void DestructeurVS(void* p)
+{
+	printf("Destructeur variable specifique\n");
+
+	fflush(stdout);
+	free(p);
+
 }

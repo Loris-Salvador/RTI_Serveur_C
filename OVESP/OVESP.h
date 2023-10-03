@@ -1,6 +1,8 @@
 #ifndef OVESP_H
 #define OVESP_H
 #include <mysql.h>
+#include <pthread.h>
+#include <mysql.h>
 
 
 typedef struct
@@ -12,7 +14,11 @@ typedef struct
   char  image[20];
 } ARTICLE;
 
-bool OVESP(char* requete, char* reponse,int socket, ARTICLE** panier, MYSQL* connect);
+
+extern pthread_key_t cle;
+extern MYSQL* connexion;
+
+bool OVESP(char* requete, char* reponse,int socket, ARTICLE** panier);
 
 
 #endif
