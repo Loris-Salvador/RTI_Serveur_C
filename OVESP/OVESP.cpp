@@ -41,20 +41,15 @@ bool articleInCaddie(int caddie, int idArticle);
 
 
 
-ARTICLE ** caddie;
-
-
 
 
 //***** Parsing de la requete et creation de la reponse *************
-bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
+bool OVESP(char* requete, char* reponse,int socket)
 {
     MYSQL_ROW ligne;
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-
-    caddie = cadd;
     // ***** Récupération nom de la requete *****************
     char *ptr = strtok(requete,"#");
 
@@ -521,7 +516,7 @@ int createCaddie(int idClient)
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT, MONTANT, CADDIE) VALUES (%d, 0, TRUE) ", idClient);
+    sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT, CADDIE) VALUES (%d, TRUE) ", idClient);
     Request(requete_sql, 0);
 
 

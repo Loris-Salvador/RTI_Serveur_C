@@ -18,7 +18,7 @@ typedef struct
 extern pthread_key_t cle;
 extern MYSQL* connexion;
 
-bool OVESP(char* requete, char* reponse,int socket, ARTICLE** panier);
+bool OVESP(char* requete, char* reponse,int socket);
 
 
 #endif

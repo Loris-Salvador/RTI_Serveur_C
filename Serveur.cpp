@@ -22,11 +22,10 @@ typedef struct SocketClient SocketClient;
 
 
 int nbClientFile = 0;
+int file = 0;
 pthread_mutex_t mutexNbClientFile;
 pthread_mutex_t mutexDB;
 pthread_cond_t condSocketsAcceptees;
-
-
 
 
 
@@ -111,6 +110,7 @@ int main(int argc,char* argv[])
   printf("Demarrage du serveur.\n");
 
   current = (SocketClient *) malloc(sizeof(SocketClient));
+  current->next = NULL; // Set next to NULL
   last = current;
 
 
@@ -159,6 +159,7 @@ int main(int argc,char* argv[])
     last->next = (SocketClient *) malloc(sizeof(SocketClient));
     last = last->next;
     nbClientFile++;
+    file++;
 
     printf("Connexion acceptée : IP=%s socket=%d\n",ipClient,sService);
 
@@ -179,16 +180,19 @@ void* FctThreadClient(void* p)
     printf("\t[THREAD %p] Attente socket...\n",pthread_self());
     pthread_mutex_lock(&mutexNbClientFile);
 
-    while (nbClientFile == 0)
+    while (file == 0)
     {
       pthread_cond_wait(&condSocketsAcceptees,&mutexNbClientFile);
     }
 
 
 
+
     SocketClient* previous = current;
     sService = current->socket;
     current = current->next;
+    file--;
+    previous->next = NULL; // Set next to NULL
     free(previous);
 
     
@@ -210,15 +214,16 @@ void TraitementConnexion(int sService)
 
 
 
-  ARTICLE** panier= (ARTICLE**)malloc(sizeof(ARTICLE*) * 10);
-
   while (onContinue)
   {
     printf("\t[THREAD %p] Attente requete...\n",pthread_self());
 
+    printf("\n1 sService: %d  , requete: %s",sService,requete);
+
     if ((nbLus = Receive(sService,requete)) < 0)
     {
-      perror("Erreur de Receive");
+      printf("\n2 sService: %d  , requete: %s",sService,requete);
+      perror("Erreur de Receive Traitement connexion");
       close(sService);
       HandlerSIGINT(0);
     }
@@ -235,7 +240,7 @@ void TraitementConnexion(int sService)
 
 
     pthread_mutex_lock(&mutexDB);
-    onContinue = OVESP(requete,reponse,sService, panier);
+    onContinue = OVESP(requete,reponse,sService);
     pthread_mutex_unlock(&mutexDB);
 
 
@@ -261,24 +266,25 @@ void TraitementConnexion(int sService)
 }
 
 
-void HandlerSIGINT(int s)
-{
-  printf("\nArret du serveur.\n");
-  close(sEcoute);
+void HandlerSIGINT(int s) {
+    printf("\nArret du serveur.\n");
+    close(sEcoute);
 
-  SocketClient* temp;
-  while (current != NULL) {
-      temp = current;
-      current = current->next;
-      free(temp);
-  }
+    while (current != NULL) {
+        SocketClient* temp = current;
+        current = current->next;
+        free(temp);
+    }
 
-  pthread_mutex_lock(&mutexDB);
-  mysql_close(connexion);
-  pthread_mutex_unlock(&mutexDB);
+    current = NULL;
 
-  exit(0);
+    pthread_mutex_lock(&mutexDB);
+    mysql_close(connexion);
+    pthread_mutex_unlock(&mutexDB);
+
+    exit(0);
 }
+
 
 void DestructeurVS(void* p)
 {
