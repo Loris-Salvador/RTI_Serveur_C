@@ -23,7 +23,7 @@ bool OVESP_Cancel(int idArticle);
 
 void OVESP_CancelAll();
 
-void OVESP_Confirmer(char*);
+void OVESP_Confirmer();
 
 
 void addUserToSpecific(char user[]);
@@ -33,6 +33,10 @@ int isCaddieExist(int idClient);
 int createCaddie(int idClient);
 
 bool isCaddieFull(int idClient);
+
+MYSQL_RES* Request(char* requete, bool resultat);
+
+bool articleInCaddie(int caddie, int idArticle);
 
 
 
@@ -120,17 +124,7 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
         int idArticle = atoi(strtok(NULL,"#"));
         
-        if(mysql_query(connexion,requete_sql) != 0)
-        {
-            fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-            exit(1);
-        }
-
-        if((resultat = mysql_store_result(connexion))==NULL)
-        {
-            fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-            exit(1);
-        }
+        resultat = Request(requete_sql, 1);
 
         while ((ligne = mysql_fetch_row(resultat)) != NULL && atoi(ligne[0]) != idArticle);//recherche du bon article en fct de l'id
                              
@@ -150,19 +144,7 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
         printf("\t[THREAD %p] ACHAT\n",pthread_self());
 
         sprintf(requete_sql,"select * from ARTICLE");
-        
-        if(mysql_query(connexion,requete_sql) != 0)
-        {
-            fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-            exit(1);
-        }
-
-
-        if((resultat = mysql_store_result(connexion))==NULL)
-        {
-            fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-            exit(1);
-        }
+        resultat = Request(requete_sql, 1);
 
         int idArticle = atoi(strtok(NULL,"#"));
 	    int idClient = *(int*)pthread_getspecific(cle);
@@ -171,10 +153,8 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
         if(isCaddieFull(idClient))
         {
-            {
-                sprintf(reponse,"ACHAT#0#0#plus de place dans le panier");
-                return 1;
-            }
+            sprintf(reponse,"ACHAT#0#0#plus de place dans le panier");
+            return 1;
         }
 
         idFacture = isCaddieExist(idClient);
@@ -190,19 +170,21 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
             if(quantite<=stock)
             {
                 sprintf(requete_sql,"update ARTICLE set stock=%d where id=%d", stock-quantite, atoi(ligne[0]));
-                 
-                if(mysql_query(connexion,requete_sql) != 0)
+                Request(requete_sql, 0);
+
+                if(articleInCaddie(idFacture, idArticle))
                 {
-                    fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-                    exit(1);
+                    sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE where ID_FACTURE=%d and ID_ARTICLE=%d", idFacture, idArticle);
+                    resultat = Request(requete_sql, 1);
+                    ligne = mysql_fetch_row(resultat);
+
+                    sprintf(requete_sql,"update ARTICLE_FACTURE set QUANTITE=%d where ID_FACTURE=%d and ID_ARTICLE=%d", atoi(ligne[2])+quantite, idFacture, idArticle);
+                    Request(requete_sql, 0);
                 }
-
-                sprintf(requete_sql, "INSERT INTO ARTICLE_FACTURE VALUES(%d,%d,%d)", idFacture, idArticle, quantite);
-
-                if(mysql_query(connexion,requete_sql) != 0)
+                else
                 {
-                    fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-                    exit(1);
+                    sprintf(requete_sql, "INSERT INTO ARTICLE_FACTURE VALUES(%d,%d,%d)", idFacture, idArticle, quantite);
+                    Request(requete_sql, 0);
                 }
 
                 sprintf(reponse,"ACHAT#%s#%d#%s#%s",ligne[0],quantite,ligne[1],ligne[2]);
@@ -240,23 +222,9 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
         sprintf(requete_sql, "SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON ARTICLE_FACTURE.ID_FACTURE = FACTURE.ID WHERE FACTURE.CADDIE is true AND FACTURE.ID_CLIENT = %d", idClient);
 
-        if(mysql_query(connexion,requete_sql) != 0)
-        {
-            fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-            exit(1);
-        }
-
-
-        if((resultat = mysql_store_result(connexion))==NULL)
-        {
-            fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-            exit(1);
-        }
+        resultat = Request(requete_sql, 1);
 
         int i=0;
-
-        printf("\n yo1\n");
-
 
         while((ligne = mysql_fetch_row(resultat)) != NULL)
         {
@@ -274,18 +242,7 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
             sprintf(requete_sql,"SELECT * FROM article join ARTICLE_FACTURE AF on article.ID = AF.ID_ARTICLE WHERE article.ID = %d AND AF.ID_FACTURE = %d", idArticle, idFacture);
 
-            if(mysql_query(connexion,requete_sql) != 0)
-            {
-                fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-                exit(1);
-            }
-
-
-            if((resultat2 = mysql_store_result(connexion))==NULL)
-            {
-                fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-                exit(1);
-            }
+            resultat2 = Request(requete_sql, 1);
 
             ligne2 = mysql_fetch_row(resultat2);
 
@@ -304,8 +261,6 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
             i++;
         }
-
-        printf("\n yo2\n");
 
 
 
@@ -334,10 +289,15 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
     {
         printf("\t[THREAD %p] CANCEL ALL\n",pthread_self());
 
-        int i;
+        sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.CADDIE is true and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
+        
+        resultat = Request(requete_sql, 1);
 
-        while(caddie[0] != NULL)
+        while((ligne = mysql_fetch_row(resultat)) != NULL)
+        {
             OVESP_Cancel(0);
+        }
+
 
         sprintf(reponse,"CANCEL ALL#OK");
     }
@@ -348,12 +308,8 @@ bool OVESP(char* requete, char* reponse,int socket, ARTICLE** cadd)
 
         printf("\t[THREAD %p] CONFIRMER\n",pthread_self());
 
-        char user[30];
 
-        strcpy(user,strtok(NULL,"#"));
-
-
-        OVESP_Confirmer(user);
+        OVESP_Confirmer();
 
         sprintf(reponse, "CONFIRMER#OK");
 
@@ -374,48 +330,34 @@ bool OVESP_Cancel(int indice)
     MYSQL_RES  *resultat;
 
 
-    sprintf(requete_sql,"select * from ARTICLE");
+    sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.CADDIE is true and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
         
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
+    resultat = Request(requete_sql, 1);
 
 
-    while ((ligne = mysql_fetch_row(resultat)) != NULL && atoi(ligne[0]) != caddie[indice]->id);//recherche du bon article en fct de l'id
+    for(int i=0; (ligne = mysql_fetch_row(resultat)) != NULL && indice != i; i++);
 
+    int idFacture = atoi(ligne[0]);
+    int idArticle = atoi(ligne[1]);
+    int quantite=atoi(ligne[2]);
 
-    if(ligne != NULL && atoi(ligne[0]) == caddie[indice]->id)// est-ce qu'on la trouvé ?           
-    {
-        int stock=atoi(ligne[3]);
+    sprintf(requete_sql, "SELECT * FROM article where id = %d", idArticle);
 
-        sprintf(requete_sql,"update ARTICLE set stock=%d where id=%d", stock+caddie[indice]->stock, caddie[indice]->id);
-                 
-        if(mysql_query(connexion,requete_sql) != 0)
-        {
-            fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-            exit(1);
-        }
+    resultat = Request(requete_sql, 1);
 
-        free(caddie[indice]);
+    ligne = mysql_fetch_row(resultat);
 
-        int j;
-        for(j = indice ; j<9 && caddie[j+1] != NULL ; j++)
-            caddie[j] = caddie[j+1];
+    int stock = atoi(ligne[3]);
+    
+    sprintf(requete_sql,"update ARTICLE set stock=%d where id=%d", quantite + stock, idArticle);
+                
+    Request(requete_sql, 0);
 
-        caddie[j] = NULL;
+    sprintf(requete_sql, "DELETE FROM ARTICLE_FACTURE WHERE ID_FACTURE = %d AND ID_ARTICLE = %d", idFacture, idArticle);
 
-        return true;
-    }
-    else
-        return false;
+    Request(requete_sql, 0);
+
+    return true;
 }  
 
 
@@ -429,18 +371,7 @@ bool is_Log_In_BD(char* user)
     sprintf(requete_sql, "SELECT * FROM CLIENT WHERE USERNAME LIKE '%s'", user);
 
         
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        return false;
-    }
-
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        return false;
-    }
+    resultat = Request(requete_sql, 1);
 
 
     ligne = mysql_fetch_row(resultat);
@@ -473,18 +404,7 @@ bool OVESP_Login(char* user, char* password)
     sprintf(requete_sql, "SELECT * FROM CLIENT WHERE USERNAME LIKE '%s'", user);
 
         
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        return false;
-    }
-
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        return false;
-    }
+    resultat = Request(requete_sql, 1);
 
 
     ligne = mysql_fetch_row(resultat);
@@ -512,104 +432,23 @@ void add_Client_In_BD(char* user, char* password)
     sprintf(requete_sql, "INSERT INTO CLIENT (USERNAME, PASSWORD) VALUES ('%s', '%s')", user, password);
 
         
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-    }
+    Request(requete_sql, 0);
 }
 
 
-void OVESP_Confirmer(char* user)
+void OVESP_Confirmer()
 {
     MYSQL_ROW ligne;
-    MYSQL_ROW row;
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    int idClient = -1, idFacture = -1;
-    float montant = 0;
 
-    sprintf(requete_sql, "SELECT * FROM CLIENT WHERE USERNAME LIKE '%s'", user);
+    sprintf(requete_sql, "UPDATE FACTURE SET CADDIE = 0 WHERE ID_CLIENT = %d AND CADDIE = 1", *(int*)pthread_getspecific(cle));
 
-
-
-
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    ligne = mysql_fetch_row(resultat);
-
-    idClient = atoi(ligne[0]);
+    Request(requete_sql, 0);
 
     
-    for(int i=0; caddie[i] != NULL; i++)
-    {
-        montant = montant + caddie[i]->prix * caddie[i]->stock;
-    }
 
-
-    sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT, MONTANT) VALUES (%d, %f)", idClient, montant);
-
-
-
-
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    if (mysql_query(connexion, "SELECT ID FROM FACTURE ORDER BY ID DESC LIMIT 1") != 0) {
-        fprintf(stderr, "Erreur lors de la récupération de la colonne : %s\n", mysql_error(connexion));
-        mysql_close(connexion);
-        exit(1);
-    }
-
-
-    resultat = mysql_store_result(connexion);
-    if (resultat) {
-        row = mysql_fetch_row(resultat);
-        idFacture = atoi(row[0]);
-        
-    }
-
-
-
-
-    while(caddie[0] != NULL)
-    {
-
-        sprintf(requete_sql, "INSERT INTO ARTICLE_FACTURE VALUES (%d, %d, %d)",idFacture , caddie[0]->id, caddie[0]->stock);
-
-
-        if(mysql_query(connexion,requete_sql) != 0)
-        {
-            fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-            exit(1);
-        }
-        
-
-
-
-        //decale
-        free(caddie[0]);
-
-        int j;
-        for(j = 0 ; j<9 && caddie[j+1] != NULL ; j++)
-            caddie[j] = caddie[j+1];
-
-        caddie[j] = NULL;
-    }
     
 }
 
@@ -624,18 +463,7 @@ void addUserToSpecific(char user[])
     sprintf(requete_sql, "SELECT * FROM CLIENT WHERE USERNAME LIKE '%s'", user);
 
 
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
+    resultat = Request(requete_sql, 1);
 
     ligne = mysql_fetch_row(resultat);
 
@@ -672,23 +500,14 @@ int isCaddieExist(int idClient)
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND CADDIE is TRUE", idClient);
+    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND CADDIE = 1", idClient);
 
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
+    resultat = Request(requete_sql, 1);
 
 
     if((ligne = mysql_fetch_row(resultat)) == NULL)
     {
+        printf("\n CADDIE PAS TROUVE");
         return -1;
     }
 
@@ -703,33 +522,15 @@ int createCaddie(int idClient)
     MYSQL_RES  *resultat;
 
     sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT, MONTANT, CADDIE) VALUES (%d, 0, TRUE) ", idClient);
-
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
+    Request(requete_sql, 0);
 
 
-
-    if (mysql_query(connexion, "SELECT ID FROM FACTURE ORDER BY ID DESC LIMIT 1") != 0) {
-        fprintf(stderr, "Erreur lors de la récupération de la colonne : %s\n", mysql_error(connexion));
-        mysql_close(connexion);
-        exit(1);
-    }
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
+    sprintf(requete_sql, "SELECT ID FROM FACTURE ORDER BY ID DESC LIMIT 1");
+    resultat = Request(requete_sql, 1);
+    
     ligne = mysql_fetch_row(resultat);
 
     return atoi(ligne[0]);
-
-
-
 
 }
 
@@ -741,38 +542,14 @@ bool isCaddieFull(int idClient)
     MYSQL_RES  *resultat;
 
     sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND CADDIE is TRUE ", idClient);
-
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
+    resultat = Request(requete_sql, 1);
 
     ligne = mysql_fetch_row(resultat);
 
     int idFacture = atoi(ligne[0]);
 
     sprintf(requete_sql, "SELECT * FROM ARTICLE_FACTURE WHERE ID_FACTURE = %d ", idFacture);
-
-
-    if(mysql_query(connexion,requete_sql) != 0)
-    {
-        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
-    if((resultat = mysql_store_result(connexion))==NULL)
-    {
-        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
-        exit(1);
-    }
-
+    resultat = Request(requete_sql, 1);
 
 
     int i = 0;
@@ -783,9 +560,39 @@ bool isCaddieFull(int idClient)
     if(i == 10)
         return true;
 
-
     return false;
-    
+}
 
+MYSQL_RES* Request(char* requete, bool resulta)
+{
+    MYSQL_RES* resultat;
+    if(mysql_query(connexion,requete) != 0)
+    {
+        fprintf(stderr, "Erreur de mysql_query: %s\n",mysql_error(connexion));
+        exit(1);
+    }
 
+    if(!resulta)
+        return resultat;
+
+    if((resultat = mysql_store_result(connexion))==NULL)
+    {
+        fprintf(stderr, "Erreur de mysql_store_result: %s\n",mysql_error(connexion));
+        exit(1);
+    }
+    return resultat;
+}
+
+bool articleInCaddie(int caddie, int idArticle)
+{
+    MYSQL_RES* resultat;
+    MYSQL_ROW ligne;
+    char requete_sql[200];
+
+    sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE where ID_FACTURE=%d and ID_ARTICLE=%d", caddie, idArticle);
+    resultat = Request(requete_sql, 1);
+
+    if((ligne = mysql_fetch_row(resultat)) != NULL)
+        return 1;
+    return 0;
 }
