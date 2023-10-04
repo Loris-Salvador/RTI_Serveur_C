@@ -272,6 +272,7 @@ void HandlerSIGINT(int s) {
 
     while (current != NULL) {
         SocketClient* temp = current;
+        close(temp->socket);//Juste faire ca jpense c'est good
         current = current->next;
         free(temp);
     }

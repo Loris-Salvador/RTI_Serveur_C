@@ -25,7 +25,6 @@ void OVESP_CancelAll();
 
 void OVESP_Confirmer();
 
-
 void addUserToSpecific(char user[]);
 
 int isCaddieExist(int idClient);
