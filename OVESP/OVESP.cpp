@@ -211,10 +211,7 @@ bool OVESP(char* requete, char* reponse,int socket)
             idFacture = createCaddie(idClient);
         }
 
-        printf("\nClient : %d\n Facture : %d", idClient, idFacture);
-
-
-        sprintf(requete_sql, "SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON ARTICLE_FACTURE.ID_FACTURE = FACTURE.ID WHERE FACTURE.CADDIE is true AND FACTURE.ID_CLIENT = %d", idClient);
+        sprintf(requete_sql, "SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON ARTICLE_FACTURE.ID_FACTURE = FACTURE.ID WHERE FACTURE.DATE_PAIEMENT is NULL AND FACTURE.ID_CLIENT = %d", idClient);
 
         resultat = Request(requete_sql, 1);
 
@@ -283,7 +280,7 @@ bool OVESP(char* requete, char* reponse,int socket)
     {
         printf("\t[THREAD %p] CANCEL ALL\n",pthread_self());
 
-        sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.CADDIE is true and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
+        sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.DATE_PAIEMENT is NULL and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
         
         resultat = Request(requete_sql, 1);
 
@@ -324,7 +321,7 @@ bool OVESP_Cancel(int indice)
     MYSQL_RES  *resultat;
 
 
-    sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.CADDIE is true and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
+    sprintf(requete_sql,"SELECT * FROM ARTICLE_FACTURE JOIN FACTURE ON FACTURE.ID = ARTICLE_FACTURE.ID_FACTURE WHERE FACTURE.DATE_PAIEMENT is NULL and FACTURE.ID_CLIENT = %d", *(int*)pthread_getspecific(cle));
         
     resultat = Request(requete_sql, 1);
 
@@ -437,7 +434,7 @@ void OVESP_Confirmer()
     MYSQL_RES  *resultat;
 
 
-    sprintf(requete_sql, "UPDATE FACTURE SET CADDIE = 0 WHERE ID_CLIENT = %d AND CADDIE = 1", *(int*)pthread_getspecific(cle));
+    sprintf(requete_sql, "UPDATE FACTURE SET DATE_PAIEMENT = CURDATE() WHERE ID_CLIENT = %d AND DATE_PAIEMENT is NULL", *(int*)pthread_getspecific(cle));
 
     Request(requete_sql, 0);
 
@@ -494,7 +491,7 @@ int isCaddieExist(int idClient)
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND CADDIE = 1", idClient);
+    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND DATE_PAIEMENT is NULL", idClient);
 
     resultat = Request(requete_sql, 1);
 
@@ -515,7 +512,7 @@ int createCaddie(int idClient)
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT, CADDIE) VALUES (%d, TRUE) ", idClient);
+    sprintf(requete_sql, "INSERT INTO FACTURE (ID_CLIENT) VALUES (%d) ", idClient);
     Request(requete_sql, 0);
 
 
@@ -535,7 +532,7 @@ bool isCaddieFull(int idClient)
     char requete_sql[200];
     MYSQL_RES  *resultat;
 
-    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND CADDIE is TRUE ", idClient);
+    sprintf(requete_sql, "SELECT * FROM FACTURE WHERE ID_CLIENT = %d AND DATE_PAIEMENT is NULL ", idClient);
     resultat = Request(requete_sql, 1);
 
     ligne = mysql_fetch_row(resultat);

@@ -218,11 +218,8 @@ void TraitementConnexion(int sService)
   {
     printf("\t[THREAD %p] Attente requete...\n",pthread_self());
 
-    printf("\n1 sService: %d  , requete: %s",sService,requete);
-
     if ((nbLus = Receive(sService,requete)) < 0)
     {
-      printf("\n2 sService: %d  , requete: %s",sService,requete);
       perror("Erreur de Receive Traitement connexion");
       close(sService);
       HandlerSIGINT(0);
